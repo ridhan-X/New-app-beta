@@ -152,45 +152,18 @@ const Native = {
     const isNative = (window as any).Capacitor?.isNative;
     if (!isNative) return true;
 
-    let allGranted = true;
-
-    try {
-      const { LocalNotifications } = await import("@capacitor/local-notifications");
-      let l = await LocalNotifications.checkPermissions();
-      if (l.display === "prompt" || l.display === "prompt-with-rationale") {
-        l = await LocalNotifications.requestPermissions();
-      }
-      if (l.display !== "granted") allGranted = false;
-    } catch (e) {
-      console.error("LocalNotifications perm error", e);
-      if ((window as any).Capacitor?.isNative) allGranted = false;
-    }
-
-    try {
-      const { Geolocation } = await import("@capacitor/geolocation");
-      let g = await Geolocation.checkPermissions();
-      if (g.location === "prompt" || g.location === "prompt-with-rationale") {
-        g = await Geolocation.requestPermissions();
-      }
-      if (g.location !== "granted") allGranted = false;
-    } catch (e) {
-      console.error("Geolocation perm error", e);
-      if ((window as any).Capacitor?.isNative) allGranted = false;
-    }
-
     try {
       const { registerPlugin } = await import("@capacitor/core");
       const AyuGuardService = registerPlugin("AyuGuardService") as any;
       if (AyuGuardService && AyuGuardService.requestNativePermissions) {
         const res = await AyuGuardService.requestNativePermissions();
-        if (!res || res.granted === false) allGranted = false;
+        if (res && res.granted) return true;
+        return false;
       }
     } catch (e) {
       console.error("AyuGuardService perm error", e);
-      if ((window as any).Capacitor?.isNative) allGranted = false;
     }
-    
-    return allGranted;
+    return false;
   },
   async vibrate(pattern = "MEDIUM") {
     try {
