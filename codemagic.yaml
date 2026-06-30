@@ -14,7 +14,6 @@ workflows:
         script: npx cap sync android
       - name: Build Android release
         script: |
-          node fix-pngs.js
           cd android
           gradle wrapper
           chmod +x gradlew
