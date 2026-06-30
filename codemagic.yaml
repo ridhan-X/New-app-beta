@@ -19,12 +19,12 @@ workflows:
           npx @capacitor/assets generate --assetPath assets
       - name: Sync Capacitor Android project
         script: npx cap sync android
-      - name: Build Android release
+      - name: Build Android App
         script: |
           cd android
           gradle wrapper
           chmod +x gradlew
-          ./gradlew assembleRelease
+          ./gradlew assembleDebug
     artifacts:
       - android/app/build/outputs/apk/**/*.apk
     publishing:
