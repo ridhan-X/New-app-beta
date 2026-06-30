@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback, createContext, useContext } from "react";
+import React, { useState, useEffect, useRef, useCallback, createContext, useContext } from "react";
 
 // ─── THEMES ──────────────────────────────────────────────────────────────────
 const THEMES = {
@@ -149,6 +149,9 @@ const Native = {
     try { const { LocalNotifications } = await import("@capacitor/local-notifications"); await LocalNotifications.cancel({ notifications: [{ id: 1001 }] }); } catch {}
   },
   async checkAndRequestPermissions() {
+    const isNative = (window as any).Capacitor?.isNative;
+    if (!isNative) return true;
+
     let allGranted = true;
 
     try {
@@ -160,7 +163,7 @@ const Native = {
       if (l.display !== "granted") allGranted = false;
     } catch (e) {
       console.error("LocalNotifications perm error", e);
-      allGranted = false;
+      if ((window as any).Capacitor?.isNative) allGranted = false;
     }
 
     try {
@@ -172,7 +175,7 @@ const Native = {
       if (g.location !== "granted") allGranted = false;
     } catch (e) {
       console.error("Geolocation perm error", e);
-      allGranted = false;
+      if ((window as any).Capacitor?.isNative) allGranted = false;
     }
 
     try {
@@ -184,7 +187,7 @@ const Native = {
       }
     } catch (e) {
       console.error("AyuGuardService perm error", e);
-      allGranted = false;
+      if ((window as any).Capacitor?.isNative) allGranted = false;
     }
     
     return allGranted;
