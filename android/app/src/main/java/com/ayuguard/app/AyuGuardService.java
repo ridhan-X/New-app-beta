@@ -102,6 +102,11 @@ public class AyuGuardService extends Service {
             @Override
             public void run() {
                 long now = System.currentTimeMillis();
+                
+                if (endTime > 0 && now >= (endTime - 13000) && !alarmPlayed && alarmSoundEnabled) {
+                    playAlarmSound();
+                }
+
                 if (endTime > 0 && now >= endTime) {
                     triggerEmergency();
                 } else {
@@ -110,6 +115,33 @@ public class AyuGuardService extends Service {
             }
         };
         handler.post(runnable);
+    }
+
+    private android.media.MediaPlayer mediaPlayer;
+    private boolean alarmPlayed = false;
+
+    private void playAlarmSound() {
+        if (!alarmSoundEnabled || alarmPlayed) return;
+        alarmPlayed = true;
+        try {
+            mediaPlayer = android.media.MediaPlayer.create(this, R.raw.sos_alarm);
+            if (mediaPlayer != null) {
+                mediaPlayer.setLooping(false);
+                mediaPlayer.start();
+            }
+        } catch (Exception e) {
+            Log.e(TAG, "Error playing alarm sound", e);
+        }
+    }
+
+    private void stopAlarmSound() {
+        if (mediaPlayer != null) {
+            try {
+                if (mediaPlayer.isPlaying()) mediaPlayer.stop();
+                mediaPlayer.release();
+            } catch (Exception e) {}
+            mediaPlayer = null;
+        }
     }
 
     private boolean isTriggered = false;
@@ -203,6 +235,7 @@ public class AyuGuardService extends Service {
     public void onDestroy() {
         super.onDestroy();
         Log.d(TAG, "Service Destroyed");
+        stopAlarmSound();
         if (runnable != null) handler.removeCallbacks(runnable);
         if (wakeLock != null && wakeLock.isHeld()) {
             wakeLock.release();

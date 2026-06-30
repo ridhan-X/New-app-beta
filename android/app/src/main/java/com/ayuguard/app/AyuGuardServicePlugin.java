@@ -146,19 +146,16 @@ public class AyuGuardServicePlugin extends Plugin {
 
     @PluginMethod
     public void requestNativePermissions(PluginCall call) {
-        if (getPermissionState("sms") != com.getcapacitor.PermissionState.GRANTED) {
-            requestPermissionForAlias("sms", call, "permissionsCallback");
-        } else {
-            JSObject ret = new JSObject();
-            ret.put("granted", true);
-            call.resolve(ret);
-        }
+        requestAllPermissions(call, "permissionsCallback");
     }
 
     @com.getcapacitor.annotation.PermissionCallback
     private void permissionsCallback(PluginCall call) {
         JSObject ret = new JSObject();
-        ret.put("granted", getPermissionState("sms") == com.getcapacitor.PermissionState.GRANTED);
+        boolean allGranted = getPermissionState("sms") == com.getcapacitor.PermissionState.GRANTED &&
+                             getPermissionState("location") == com.getcapacitor.PermissionState.GRANTED &&
+                             getPermissionState("notifications") == com.getcapacitor.PermissionState.GRANTED;
+        ret.put("granted", allGranted);
         call.resolve(ret);
     }
 }

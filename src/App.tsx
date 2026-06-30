@@ -24,7 +24,7 @@ const ThemeCtx = createContext(THEMES.dark);
 const useTheme = () => useContext(ThemeCtx);
 
 const S = {
-  SETUP_WIZARD: "SETUP_WIZARD", TUTORIAL:"TUTORIAL", HOME:"HOME", JOURNEY_SETUP:"JOURNEY_SETUP",
+  INITIAL_PERMISSIONS: "INITIAL_PERMISSIONS", SETUP_WIZARD: "SETUP_WIZARD", TUTORIAL:"TUTORIAL", HOME:"HOME", JOURNEY_SETUP:"JOURNEY_SETUP",
   JOURNEY_ACTIVE:"JOURNEY_ACTIVE", CONTACTS:"CONTACTS", SETTINGS:"SETTINGS",
   ABOUT:"ABOUT", SOS_COUNTDOWN:"SOS_COUNTDOWN",
   SOS_ALARM:"SOS_ALARM", FEEDBACK:"FEEDBACK",
@@ -336,22 +336,58 @@ function TimePickerModal({ title, value, onConfirm, onCancel, maxHours = 0, minS
   );
 }
 
+function InitialPermissionsScreen({ T, onGranted }) {
+  const [error, setError] = useState("");
+  const [checking, setChecking] = useState(true);
+
+  useEffect(() => {
+    let mounted = true;
+    const request = async () => {
+      const granted = await Native.checkAndRequestPermissions();
+      if (mounted) {
+        if (granted) onGranted();
+        else {
+          setError("AyuGuard requires Location, Notifications, and SMS permissions to function during emergencies.");
+          setChecking(false);
+        }
+      }
+    };
+    request();
+    return () => { mounted = false; };
+  }, [onGranted]);
+
+  const retry = async () => {
+    setError("");
+    const granted = await Native.checkAndRequestPermissions();
+    if (granted) onGranted();
+    else setError("AyuGuard requires Location, Notifications, and SMS permissions to function during emergencies.");
+  };
+
+  return (
+    <div style={{ minHeight: "100dvh", display: "flex", flexDirection: "column", background: T.bg, padding: "40px 24px", justifyContent: "center", alignItems: "center", textAlign: "center" }}>
+      {error ? (
+        <div className="fade-in">
+          <div style={{ width: 80, height: 80, borderRadius: 24, background: T.card, border: `1px solid ${T.border}`, display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 24px" }}>
+            {Ic.shield(T.red, 36)}
+          </div>
+          <h2 style={{ fontSize: 24, fontWeight: 800, color: T.text1, marginBottom: 16 }}>Permissions Required</h2>
+          <p style={{ fontSize: 15, color: T.text2, lineHeight: 1.6, marginBottom: 32 }}>{error}</p>
+          <button className="btn-primary" onClick={retry}>Grant Permissions</button>
+        </div>
+      ) : (
+        <div className="fade-in">
+          <p style={{ color: T.text2, fontSize: 16, fontWeight: 500 }}>Requesting permissions...</p>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── SETUP WIZARD (FIRST LAUNCH) ─────────────────────────────────────────────
 function SetupWizardScreen({ T, onComplete }) {
   const [step, setStep] = useState(0);
-  const [permError, setPermError] = useState("");
 
   const nextStep = () => setStep(s => s + 1);
-
-  const handlePermissions = async () => {
-    setPermError("");
-    const granted = await Native.checkAndRequestPermissions();
-    if (granted) {
-      nextStep();
-    } else {
-      setPermError("Please grant all required permissions to continue.");
-    }
-  };
 
   const handleAppInfo = async () => {
     await Native.openAppSettings();
@@ -378,40 +414,6 @@ function SetupWizardScreen({ T, onComplete }) {
 
         {step === 1 && (
           <div className="fade-in">
-            <h2 style={{ fontSize: 24, fontWeight: 800, color: T.text1, marginBottom: 12 }}>Core Permissions</h2>
-            <p style={{ fontSize: 15, color: T.text2, lineHeight: 1.6, marginBottom: 32 }}>AyuGuard requires Location to send your coordinates, Notifications for countdowns, and SMS to reach emergency contacts.</p>
-            <div style={{ background: T.card, borderRadius: 16, padding: "16px 20px", border: `1px solid ${T.border}`, display: "flex", flexDirection: "column", gap: 16, marginBottom: 32 }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
-                {Ic.map(T.blue, 24)}
-                <div style={{ flex: 1 }}>
-                  <p style={{ fontSize: 15, fontWeight: 600, color: T.text1 }}>Location</p>
-                  <p style={{ fontSize: 13, color: T.text3 }}>Required for SOS messages.</p>
-                </div>
-              </div>
-              <div style={{ height: 1, background: T.border }} />
-              <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
-                {Ic.bell(T.green, 24)}
-                <div style={{ flex: 1 }}>
-                  <p style={{ fontSize: 15, fontWeight: 600, color: T.text1 }}>Notifications</p>
-                  <p style={{ fontSize: 13, color: T.text3 }}>Required for countdowns.</p>
-                </div>
-              </div>
-              <div style={{ height: 1, background: T.border }} />
-              <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
-                {Ic.edit(T.red, 24)}
-                <div style={{ flex: 1 }}>
-                  <p style={{ fontSize: 15, fontWeight: 600, color: T.text1 }}>SMS</p>
-                  <p style={{ fontSize: 13, color: T.text3 }}>Required to alert contacts.</p>
-                </div>
-              </div>
-            </div>
-            {permError && <p style={{color: T.red, fontSize: 13, marginBottom: 16, textAlign: "center"}}>{permError}</p>}
-            <button className="btn-primary" onClick={handlePermissions}>Grant Permissions</button>
-          </div>
-        )}
-
-        {step === 2 && (
-          <div className="fade-in">
             <h2 style={{ fontSize: 24, fontWeight: 800, color: T.text1, marginBottom: 12 }}>Background Reliability</h2>
             <p style={{ fontSize: 15, color: T.text2, lineHeight: 1.6, marginBottom: 24 }}>To ensure SOS works even when your phone is locked, you must allow restricted settings.</p>
             <div style={{ background: T.cardHover, border: `1px solid ${T.borderStrong}`, borderRadius: 16, padding: "20px", marginBottom: 32, display: "flex", flexDirection: "column", gap: 20 }}>
@@ -437,7 +439,7 @@ function SetupWizardScreen({ T, onComplete }) {
           </div>
         )}
 
-        {step === 3 && (
+        {step === 2 && (
           <div className="fade-in">
             <h2 style={{ fontSize: 24, fontWeight: 800, color: T.text1, marginBottom: 12 }}>Battery Optimization</h2>
             <p style={{ fontSize: 15, color: T.text2, lineHeight: 1.6, marginBottom: 24 }}>Prevent Android from killing AyuGuard during emergencies.</p>
@@ -1007,11 +1009,14 @@ function SOSCountdownScreen({ T, countdownSec, onCancel, onAlarm, isTest, sosTyp
       if (timeLeft <= 13) {
         alarmPlayedRef.current = true;
         try {
-          const src = "/sos_alarm.mp3";
-          const audio = new Audio(src);
-          audio.loop = false;
-          audioRef.current = audio;
-          audio.play().catch(() => {});
+          const isAndroid = navigator.userAgent.toLowerCase().includes("android") && (window as any).Capacitor?.isNative;
+          if (!isAndroid) {
+            const src = "/sos_alarm.mp3";
+            const audio = new Audio(src);
+            audio.loop = false;
+            audioRef.current = audio;
+            audio.play().catch(() => {});
+          }
         } catch {}
       }
     }
@@ -1453,13 +1458,15 @@ export default function AyuGuard() {
 
         const setupDone = await Native.getItem("ayuguard_setup_done");
         const tutDone = await Native.getItem("ayuguard_tutorial_done");
+        const permsDone = await Native.getItem("ayuguard_perms_done");
         if (mounted) {
-          if (setupDone !== "1") {
+          if (permsDone !== "1") {
+            setScreen(S.INITIAL_PERMISSIONS);
+          } else if (setupDone !== "1") {
             setScreen(S.SETUP_WIZARD);
           } else if (tutDone !== "1") {
             setScreen(S.TUTORIAL);
           } else {
-            Native.checkAndRequestPermissions();
             setScreen(jrn && JSON.parse(jrn).active ? S.JOURNEY_ACTIVE : S.HOME);
           }
         }
@@ -1473,8 +1480,6 @@ export default function AyuGuard() {
 
   const completeTutorial = useCallback(async () => {
     await Native.setItem("ayuguard_tutorial_done", "1");
-    // Request permissions after tutorial
-    Native.checkAndRequestPermissions();
     setScreen(S.HOME);
   }, []);
 
@@ -1662,7 +1667,12 @@ export default function AyuGuard() {
   `;
 
   const isFullScreen = [S.SOS_COUNTDOWN, S.SOS_ALARM, S.TEST_COUNTDOWN, S.TEST_ALARM].includes(screen);
-  const isTutorial = screen === S.TUTORIAL || screen === S.SETUP_WIZARD;
+  const isTutorial = screen === S.TUTORIAL || screen === S.SETUP_WIZARD || screen === S.INITIAL_PERMISSIONS;
+
+  const completePerms = useCallback(async () => {
+    await Native.setItem("ayuguard_perms_done", "1");
+    setScreen(S.SETUP_WIZARD);
+  }, []);
 
   const completeSetup = useCallback(async () => {
     await Native.setItem("ayuguard_setup_done", "1");
@@ -1676,6 +1686,7 @@ export default function AyuGuard() {
       <style>{globalCSS + dynCSS}</style>
       <div style={{ background: T.bg, color: T.text1, minHeight: "100dvh", maxWidth: 420, margin: "0 auto", position: "relative", overflowX: "hidden", fontFamily: "'Inter',sans-serif", transition: "background 0.25s" }}>
         
+        {screen === S.INITIAL_PERMISSIONS && <InitialPermissionsScreen T={T} onGranted={completePerms} />}
         {screen === S.SETUP_WIZARD && <SetupWizardScreen T={T} onComplete={completeSetup} />}
         {screen === S.TUTORIAL && <TutorialScreen onDone={completeTutorial} T={T} />}
 
