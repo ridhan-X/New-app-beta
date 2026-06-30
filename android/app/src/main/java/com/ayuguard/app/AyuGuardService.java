@@ -57,6 +57,7 @@ public class AyuGuardService extends Service {
 
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
+        Log.d(TAG, "[TRACE] AyuGuardService.onStartCommand() called");
         createNotificationChannel();
 
         Intent notificationIntent = new Intent(this, MainActivity.class);
@@ -73,12 +74,14 @@ public class AyuGuardService extends Service {
 
         try {
             if (Build.VERSION.SDK_INT >= 29) { // Build.VERSION_CODES.Q
+                Log.d(TAG, "[TRACE] startForeground with location type");
                 startForeground(NOTIFICATION_ID, notification, android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION);
             } else {
+                Log.d(TAG, "[TRACE] startForeground normal");
                 startForeground(NOTIFICATION_ID, notification);
             }
         } catch (Exception e) {
-            Log.e(TAG, "startForeground failed", e);
+            Log.e(TAG, "[TRACE] startForeground failed", e);
         }
 
         if (intent != null) {
@@ -86,8 +89,10 @@ public class AyuGuardService extends Service {
             endTime = intent.getLongExtra("endTime", -1);
             savedContacts = intent.getStringExtra("contacts");
             alarmSoundEnabled = intent.getBooleanExtra("alarmSoundEnabled", true);
-            
+            Log.d(TAG, "[TRACE] Service configured: type=" + type + " endTime=" + endTime + " alarmSoundEnabled=" + alarmSoundEnabled);
             if (savedContacts == null) savedContacts = "[]";
+        } else {
+            Log.w(TAG, "[TRACE] Intent is null in onStartCommand");
         }
 
         startTimer();
@@ -121,20 +126,25 @@ public class AyuGuardService extends Service {
     private boolean alarmPlayed = false;
 
     private void playAlarmSound() {
+        Log.d(TAG, "[TRACE] playAlarmSound() called, alarmSoundEnabled=" + alarmSoundEnabled + " alarmPlayed=" + alarmPlayed);
         if (!alarmSoundEnabled || alarmPlayed) return;
         alarmPlayed = true;
         try {
             mediaPlayer = android.media.MediaPlayer.create(this, R.raw.sos_alarm);
             if (mediaPlayer != null) {
+                Log.d(TAG, "[TRACE] Starting mediaPlayer");
                 mediaPlayer.setLooping(false);
                 mediaPlayer.start();
+            } else {
+                Log.e(TAG, "[TRACE] mediaPlayer is null");
             }
         } catch (Exception e) {
-            Log.e(TAG, "Error playing alarm sound", e);
+            Log.e(TAG, "[TRACE] Error playing alarm sound", e);
         }
     }
 
     private void stopAlarmSound() {
+        Log.d(TAG, "[TRACE] stopAlarmSound() called");
         if (mediaPlayer != null) {
             try {
                 if (mediaPlayer.isPlaying()) mediaPlayer.stop();
@@ -147,53 +157,62 @@ public class AyuGuardService extends Service {
     private boolean isTriggered = false;
 
     private void triggerEmergency() {
+        Log.d(TAG, "[TRACE] triggerEmergency() called, isTriggered=" + isTriggered);
         if (isTriggered) return;
         isTriggered = true;
-        Log.d(TAG, "Triggering Emergency SOS");
+        Log.d(TAG, "[TRACE] Triggering Emergency SOS");
         // Only trigger once
         if (runnable != null) handler.removeCallbacks(runnable);
         
         if (AyuGuardServicePlugin.hasDispatchedRecently(this)) {
-            Log.d(TAG, "Already dispatched recently, skipping");
+            Log.d(TAG, "[TRACE] Already dispatched recently, skipping");
             stopSelf();
             return;
         }
 
         try {
+            Log.d(TAG, "[TRACE] Requesting location before SMS dispatch");
             CancellationTokenSource cts = new CancellationTokenSource();
             Task<Location> locationTask = fusedLocationClient.getCurrentLocation(Priority.PRIORITY_HIGH_ACCURACY, cts.getToken());
             
             handler.postDelayed(() -> cts.cancel(), 10000); // 10s timeout
 
             locationTask.addOnSuccessListener(location -> {
+                Log.d(TAG, "[TRACE] locationTask success");
                 if (location != null) {
                     dispatchSMS(location);
                 } else {
                     fallbackToLastLocation();
                 }
             }).addOnFailureListener(e -> {
+                Log.e(TAG, "[TRACE] locationTask failed", e);
                 fallbackToLastLocation();
             });
             
         } catch (SecurityException e) {
-            Log.e(TAG, "Location permission denied", e);
+            Log.e(TAG, "[TRACE] Location permission denied", e);
             dispatchSMS(null);
         }
     }
 
     private void fallbackToLastLocation() {
+        Log.d(TAG, "[TRACE] fallbackToLastLocation() called");
         try {
             fusedLocationClient.getLastLocation().addOnSuccessListener(location -> {
+                Log.d(TAG, "[TRACE] getLastLocation success");
                 dispatchSMS(location);
             }).addOnFailureListener(e -> {
+                Log.e(TAG, "[TRACE] getLastLocation failed", e);
                 dispatchSMS(null);
             });
         } catch (SecurityException e) {
+            Log.e(TAG, "[TRACE] getLastLocation permission denied", e);
             dispatchSMS(null);
         }
     }
 
     private void dispatchSMS(Location location) {
+        Log.d(TAG, "[TRACE] dispatchSMS() called");
         AyuGuardServicePlugin.markDispatched(this);
         String msg = "[EMERGENCY - AyuGuard]\nI need help immediately.";
         if (location != null) {
@@ -204,6 +223,7 @@ public class AyuGuardService extends Service {
         
         try {
             org.json.JSONArray contacts = new org.json.JSONArray(savedContacts);
+            Log.d(TAG, "[TRACE] Sending SMS to " + contacts.length() + " contacts");
             android.telephony.SmsManager smsManager = null;
             if (Build.VERSION.SDK_INT >= 31) {
                 smsManager = getSystemService(android.telephony.SmsManager.class);
@@ -215,18 +235,21 @@ public class AyuGuardService extends Service {
                     org.json.JSONObject contact = contacts.getJSONObject(i);
                     String phone = contact.getString("phone");
                     if (phone != null && !phone.isEmpty()) {
+                        Log.d(TAG, "[TRACE] SmsManager sending to: " + phone);
                         java.util.ArrayList<String> parts = smsManager.divideMessage(msg);
                         if (parts.size() > 1) {
                             smsManager.sendMultipartTextMessage(phone, null, parts, null, null);
                         } else {
                             smsManager.sendTextMessage(phone, null, msg, null, null);
                         }
-                        Log.d(TAG, "SMS Sent to " + phone);
+                        Log.d(TAG, "[TRACE] SMS Sent to " + phone);
                     }
                 }
+            } else {
+                Log.w(TAG, "[TRACE] smsManager is null");
             }
         } catch (Exception e) {
-            Log.e(TAG, "Error sending SMS", e);
+            Log.e(TAG, "[TRACE] Error sending SMS", e);
         }
         stopSelf();
     }

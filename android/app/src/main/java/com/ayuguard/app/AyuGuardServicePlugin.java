@@ -45,12 +45,14 @@ public class AyuGuardServicePlugin extends Plugin {
 
     @PluginMethod
     public void start(PluginCall call) {
+        android.util.Log.d("AyuGuard", "[TRACE] AyuGuardServicePlugin.start() called");
         String type = call.getString("type", "manual");
         Long endTime = call.getLong("endTime");
         String contacts = call.getString("contacts", "[]");
         Boolean alarmSoundEnabled = call.getBoolean("alarmSoundEnabled", true);
 
         if (endTime == null) {
+            android.util.Log.e("AyuGuard", "[TRACE] start() failed: endTime is required");
             call.reject("endTime is required");
             return;
         }
@@ -63,8 +65,10 @@ public class AyuGuardServicePlugin extends Plugin {
         intent.putExtra("alarmSoundEnabled", alarmSoundEnabled);
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            android.util.Log.d("AyuGuard", "[TRACE] startForegroundService called");
             ContextCompat.startForegroundService(context, intent);
         } else {
+            android.util.Log.d("AyuGuard", "[TRACE] startService called");
             context.startService(intent);
         }
 
@@ -105,6 +109,7 @@ public class AyuGuardServicePlugin extends Plugin {
 
     @PluginMethod
     public void sendSMS(PluginCall call) {
+        android.util.Log.d("AyuGuard", "[TRACE] AyuGuardServicePlugin.sendSMS() called");
         JSObject numbers = call.getObject("numbers", new JSObject());
         // capacitor arrays are sent differently, usually JSArray.
         // let's just accept a string of numbers separated by comma.
@@ -112,6 +117,7 @@ public class AyuGuardServicePlugin extends Plugin {
         String message = call.getString("message", "");
 
         if (message.isEmpty() || numbersStr.isEmpty()) {
+            android.util.Log.e("AyuGuard", "[TRACE] sendSMS() failed: Missing numbers or message");
             call.reject("Missing numbers or message");
             return;
         }
@@ -124,12 +130,14 @@ public class AyuGuardServicePlugin extends Plugin {
                 smsManager = android.telephony.SmsManager.getDefault();
             }
             if (smsManager == null) {
+                android.util.Log.e("AyuGuard", "[TRACE] sendSMS() failed: SmsManager is null");
                 call.reject("SmsManager is null");
                 return;
             }
             String[] nums = numbersStr.split(",");
             for (String num : nums) {
                 if (!num.trim().isEmpty()) {
+                    android.util.Log.d("AyuGuard", "[TRACE] Sending SMS to: " + num.trim());
                     java.util.ArrayList<String> parts = smsManager.divideMessage(message);
                     if (parts.size() > 1) {
                         smsManager.sendMultipartTextMessage(num.trim(), null, parts, null, null);
@@ -140,6 +148,7 @@ public class AyuGuardServicePlugin extends Plugin {
             }
             call.resolve();
         } catch (Exception e) {
+            android.util.Log.e("AyuGuard", "[TRACE] sendSMS() exception: " + e.getMessage());
             call.reject("SMS failed: " + e.getMessage());
         }
     }
