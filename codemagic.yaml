@@ -10,6 +10,13 @@ workflows:
         script: npm install
       - name: Build web project
         script: npm run build
+      - name: Generate Capacitor Assets
+        script: |
+          rm -rf android/app/src/main/res/mipmap-*/*.png
+          rm -rf android/app/src/main/res/drawable-*/*.png
+          rm -rf android/app/src/main/res/drawable/*.png
+          rm -rf android/app/src/main/res/mipmap-anydpi-v26
+          npx @capacitor/assets generate --assetPath assets
       - name: Sync Capacitor Android project
         script: npx cap sync android
       - name: Build Android release
