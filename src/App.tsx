@@ -150,6 +150,7 @@ const Native = {
   },
   async checkAndRequestPermissions() {
     let allGranted = true;
+
     try {
       const { LocalNotifications } = await import("@capacitor/local-notifications");
       let l = await LocalNotifications.checkPermissions();
@@ -157,7 +158,10 @@ const Native = {
         l = await LocalNotifications.requestPermissions();
       }
       if (l.display !== "granted") allGranted = false;
-    } catch {}
+    } catch (e) {
+      console.error("LocalNotifications perm error", e);
+      allGranted = false;
+    }
 
     try {
       const { Geolocation } = await import("@capacitor/geolocation");
@@ -166,16 +170,22 @@ const Native = {
         g = await Geolocation.requestPermissions();
       }
       if (g.location !== "granted") allGranted = false;
-    } catch {}
+    } catch (e) {
+      console.error("Geolocation perm error", e);
+      allGranted = false;
+    }
 
     try {
       const { registerPlugin } = await import("@capacitor/core");
       const AyuGuardService = registerPlugin("AyuGuardService") as any;
       if (AyuGuardService && AyuGuardService.requestNativePermissions) {
         const res = await AyuGuardService.requestNativePermissions();
-        if (res && res.granted === false) allGranted = false;
+        if (!res || res.granted === false) allGranted = false;
       }
-    } catch {}
+    } catch (e) {
+      console.error("AyuGuardService perm error", e);
+      allGranted = false;
+    }
     
     return allGranted;
   },
@@ -459,7 +469,7 @@ function SetupWizardScreen({ T, onComplete }) {
           </div>
         )}
 
-        {step === 4 && (
+        {step === 3 && (
           <div className="fade-in" style={{ textAlign: "center" }}>
             <div style={{ width: 80, height: 80, borderRadius: "50%", background: `${T.green}20`, border: `2px solid ${T.green}`, display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 24px", boxShadow: `0 8px 32px ${T.green}40` }}>
               <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke={T.green} strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
@@ -1388,7 +1398,32 @@ function AboutScreen({ T }) {
 }
 
 // ─── ROOT APP ────────────────────────────────────────────────────────────────
+class ErrorBoundary extends React.Component<{children: any}, {hasError: boolean, error: any}> {
+  constructor(props) { super(props); this.state = { hasError: false, error: null }; }
+  static getDerivedStateFromError(error) { return { hasError: true, error }; }
+  componentDidCatch(error, errorInfo) { console.error("Uncaught error:", error, errorInfo); }
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div style={{ padding: 40, background: "#000", color: "#ff5252", minHeight: "100dvh" }}>
+          <h1 style={{ fontSize: 24, marginBottom: 20 }}>App Crashed</h1>
+          <pre style={{ fontSize: 11, whiteSpace: "pre-wrap", wordBreak: "break-all" }}>{String(this.state.error)}</pre>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
 export default function AyuGuard() {
+  return (
+    <ErrorBoundary>
+      <AyuGuardInner />
+    </ErrorBoundary>
+  );
+}
+
+function AyuGuardInner() {
   // Theme: "system" | "dark" | "day"
   const [themeId, setThemeId] = useState("system");
   const [systemDark, setSystemDark] = useState(() => window.matchMedia?.("(prefers-color-scheme: dark)").matches ?? true);
