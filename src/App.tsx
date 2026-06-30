@@ -55,7 +55,7 @@ const Native = {
         optionIOS: IOSSettings.App
       });
     } catch {
-      alert("In the Android APK, this opens the System App Settings.");
+      console.log("Would open System App Settings");
     }
   },
   async openBatterySettings() {
@@ -66,7 +66,7 @@ const Native = {
         optionIOS: IOSSettings.App
       });
     } catch {
-      alert("In the Android APK, this opens the System Battery Settings.");
+      console.log("Would open System Battery Settings");
     }
   },
   async startForegroundService(type, data) {
@@ -149,23 +149,35 @@ const Native = {
     try { const { LocalNotifications } = await import("@capacitor/local-notifications"); await LocalNotifications.cancel({ notifications: [{ id: 1001 }] }); } catch {}
   },
   async checkAndRequestPermissions() {
-    try {
-      const { Geolocation } = await import("@capacitor/geolocation");
-      const g = await Geolocation.checkPermissions();
-      if (g.location === "prompt" || g.location === "prompt-with-rationale") await Geolocation.requestPermissions();
-    } catch {}
+    let allGranted = true;
     try {
       const { LocalNotifications } = await import("@capacitor/local-notifications");
-      const l = await LocalNotifications.checkPermissions();
-      if (l.display === "prompt") await LocalNotifications.requestPermissions();
+      let l = await LocalNotifications.checkPermissions();
+      if (l.display === "prompt" || l.display === "prompt-with-rationale") {
+        l = await LocalNotifications.requestPermissions();
+      }
+      if (l.display !== "granted") allGranted = false;
     } catch {}
+
+    try {
+      const { Geolocation } = await import("@capacitor/geolocation");
+      let g = await Geolocation.checkPermissions();
+      if (g.location === "prompt" || g.location === "prompt-with-rationale") {
+        g = await Geolocation.requestPermissions();
+      }
+      if (g.location !== "granted") allGranted = false;
+    } catch {}
+
     try {
       const { registerPlugin } = await import("@capacitor/core");
       const AyuGuardService = registerPlugin("AyuGuardService") as any;
       if (AyuGuardService && AyuGuardService.requestNativePermissions) {
-        await AyuGuardService.requestNativePermissions();
+        const res = await AyuGuardService.requestNativePermissions();
+        if (res && res.granted === false) allGranted = false;
       }
     } catch {}
+    
+    return allGranted;
   },
   async vibrate(pattern = "MEDIUM") {
     try {
@@ -327,12 +339,18 @@ function TimePickerModal({ title, value, onConfirm, onCancel, maxHours = 0, minS
 // ─── SETUP WIZARD (FIRST LAUNCH) ─────────────────────────────────────────────
 function SetupWizardScreen({ T, onComplete }) {
   const [step, setStep] = useState(0);
+  const [permError, setPermError] = useState("");
 
   const nextStep = () => setStep(s => s + 1);
 
   const handlePermissions = async () => {
-    await Native.checkAndRequestPermissions();
-    nextStep();
+    setPermError("");
+    const granted = await Native.checkAndRequestPermissions();
+    if (granted) {
+      nextStep();
+    } else {
+      setPermError("Please grant all required permissions to continue.");
+    }
   };
 
   const handleAppInfo = async () => {
@@ -361,7 +379,7 @@ function SetupWizardScreen({ T, onComplete }) {
         {step === 1 && (
           <div className="fade-in">
             <h2 style={{ fontSize: 24, fontWeight: 800, color: T.text1, marginBottom: 12 }}>Core Permissions</h2>
-            <p style={{ fontSize: 15, color: T.text2, lineHeight: 1.6, marginBottom: 32 }}>AyuGuard requires Location to send your coordinates, and Notifications to display emergency countdowns.</p>
+            <p style={{ fontSize: 15, color: T.text2, lineHeight: 1.6, marginBottom: 32 }}>AyuGuard requires Location to send your coordinates, Notifications for countdowns, and SMS to reach emergency contacts.</p>
             <div style={{ background: T.card, borderRadius: 16, padding: "16px 20px", border: `1px solid ${T.border}`, display: "flex", flexDirection: "column", gap: 16, marginBottom: 32 }}>
               <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
                 {Ic.map(T.blue, 24)}
@@ -378,7 +396,16 @@ function SetupWizardScreen({ T, onComplete }) {
                   <p style={{ fontSize: 13, color: T.text3 }}>Required for countdowns.</p>
                 </div>
               </div>
+              <div style={{ height: 1, background: T.border }} />
+              <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
+                {Ic.edit(T.red, 24)}
+                <div style={{ flex: 1 }}>
+                  <p style={{ fontSize: 15, fontWeight: 600, color: T.text1 }}>SMS</p>
+                  <p style={{ fontSize: 13, color: T.text3 }}>Required to alert contacts.</p>
+                </div>
+              </div>
             </div>
+            {permError && <p style={{color: T.red, fontSize: 13, marginBottom: 16, textAlign: "center"}}>{permError}</p>}
             <button className="btn-primary" onClick={handlePermissions}>Grant Permissions</button>
           </div>
         )}
@@ -1399,7 +1426,7 @@ export default function AyuGuard() {
 
         const cons = await Native.getItem("ayuguard_contacts");
         if (mounted) {
-          setContacts(cons ? JSON.parse(cons) : [{ id: 1, name: "Mom", phone: "+91 98765 43210" }, { id: 2, name: "Rahul", phone: "+91 91234 56789" }]);
+          setContacts(cons ? JSON.parse(cons) : []);
           setContactsLoaded(true);
           setSettingsLoaded(true);
         }

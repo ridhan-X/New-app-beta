@@ -117,11 +117,25 @@ public class AyuGuardServicePlugin extends Plugin {
         }
 
         try {
-            android.telephony.SmsManager smsManager = android.telephony.SmsManager.getDefault();
+            android.telephony.SmsManager smsManager = null;
+            if (Build.VERSION.SDK_INT >= 31) {
+                smsManager = getContext().getSystemService(android.telephony.SmsManager.class);
+            } else {
+                smsManager = android.telephony.SmsManager.getDefault();
+            }
+            if (smsManager == null) {
+                call.reject("SmsManager is null");
+                return;
+            }
             String[] nums = numbersStr.split(",");
             for (String num : nums) {
                 if (!num.trim().isEmpty()) {
-                    smsManager.sendTextMessage(num.trim(), null, message, null, null);
+                    java.util.ArrayList<String> parts = smsManager.divideMessage(message);
+                    if (parts.size() > 1) {
+                        smsManager.sendMultipartTextMessage(num.trim(), null, parts, null, null);
+                    } else {
+                        smsManager.sendTextMessage(num.trim(), null, message, null, null);
+                    }
                 }
             }
             call.resolve();
@@ -135,13 +149,17 @@ public class AyuGuardServicePlugin extends Plugin {
         if (getPermissionState("sms") != com.getcapacitor.PermissionState.GRANTED) {
             requestPermissionForAlias("sms", call, "permissionsCallback");
         } else {
-            call.resolve();
+            JSObject ret = new JSObject();
+            ret.put("granted", true);
+            call.resolve(ret);
         }
     }
 
     @com.getcapacitor.annotation.PermissionCallback
     private void permissionsCallback(PluginCall call) {
-        call.resolve();
+        JSObject ret = new JSObject();
+        ret.put("granted", getPermissionState("sms") == com.getcapacitor.PermissionState.GRANTED);
+        call.resolve(ret);
     }
 }
 

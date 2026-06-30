@@ -9,5 +9,13 @@ public class MainActivity extends BridgeActivity {
         registerPlugin(AyuGuardServicePlugin.class);
         super.onCreate(savedInstanceState);
     }
+
+    @Override
+    public void onStart() {
+        super.onStart();
+        if (getBridge() != null && getBridge().getWebView() != null) {
+            getBridge().getWebView().getSettings().setMediaPlaybackRequiresUserGesture(false);
+        }
+    }
 }
 

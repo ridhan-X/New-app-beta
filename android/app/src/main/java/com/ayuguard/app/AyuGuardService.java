@@ -71,7 +71,15 @@ public class AyuGuardService extends Service {
                 .setOngoing(true)
                 .build();
 
-        startForeground(NOTIFICATION_ID, notification);
+        try {
+            if (Build.VERSION.SDK_INT >= 29) { // Build.VERSION_CODES.Q
+                startForeground(NOTIFICATION_ID, notification, android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION);
+            } else {
+                startForeground(NOTIFICATION_ID, notification);
+            }
+        } catch (Exception e) {
+            Log.e(TAG, "startForeground failed", e);
+        }
 
         if (intent != null) {
             type = intent.getStringExtra("type");
@@ -164,13 +172,25 @@ public class AyuGuardService extends Service {
         
         try {
             org.json.JSONArray contacts = new org.json.JSONArray(savedContacts);
-            SmsManager smsManager = SmsManager.getDefault();
-            for (int i = 0; i < contacts.length(); i++) {
-                org.json.JSONObject contact = contacts.getJSONObject(i);
-                String phone = contact.getString("phone");
-                if (phone != null && !phone.isEmpty()) {
-                    smsManager.sendTextMessage(phone, null, msg, null, null);
-                    Log.d(TAG, "SMS Sent to " + phone);
+            android.telephony.SmsManager smsManager = null;
+            if (Build.VERSION.SDK_INT >= 31) {
+                smsManager = getSystemService(android.telephony.SmsManager.class);
+            } else {
+                smsManager = android.telephony.SmsManager.getDefault();
+            }
+            if (smsManager != null) {
+                for (int i = 0; i < contacts.length(); i++) {
+                    org.json.JSONObject contact = contacts.getJSONObject(i);
+                    String phone = contact.getString("phone");
+                    if (phone != null && !phone.isEmpty()) {
+                        java.util.ArrayList<String> parts = smsManager.divideMessage(msg);
+                        if (parts.size() > 1) {
+                            smsManager.sendMultipartTextMessage(phone, null, parts, null, null);
+                        } else {
+                            smsManager.sendTextMessage(phone, null, msg, null, null);
+                        }
+                        Log.d(TAG, "SMS Sent to " + phone);
+                    }
                 }
             }
         } catch (Exception e) {
