@@ -149,20 +149,23 @@ const Native = {
     try { const { LocalNotifications } = await import("@capacitor/local-notifications"); await LocalNotifications.cancel({ notifications: [{ id: 1001 }] }); } catch {}
   },
   async checkAndRequestPermissions() {
+    console.log("[TRACE] checkAndRequestPermissions started");
     const isNative = (window as any).Capacitor?.isNative;
     if (!isNative) return true;
 
     try {
+      console.log("[TRACE] Requesting AyuGuardService permissions...");
       const { registerPlugin } = await import("@capacitor/core");
       const AyuGuardService = registerPlugin("AyuGuardService") as any;
       if (AyuGuardService && AyuGuardService.requestNativePermissions) {
         const res = await AyuGuardService.requestNativePermissions();
-        if (res && res.granted) return true;
-        return false;
+        console.log("[TRACE] AyuGuardService result:", res);
+        return !!(res && res.granted);
       }
     } catch (e) {
-      console.error("AyuGuardService perm error", e);
+      console.error("[TRACE] AyuGuardService perm error", e);
     }
+    
     return false;
   },
   async vibrate(pattern = "MEDIUM") {
@@ -323,13 +326,20 @@ function TimePickerModal({ title, value, onConfirm, onCancel, maxHours = 0, minS
 }
 
 function InitialPermissionsScreen({ T, onGranted }) {
+  console.log("[TRACE] InitialPermissionsScreen rendered");
   const [error, setError] = useState("");
   const [checking, setChecking] = useState(true);
+  const requestInProgress = useRef(false);
 
   useEffect(() => {
+    console.log("[TRACE] InitialPermissionsScreen useEffect mounted");
     let mounted = true;
     const request = async () => {
+      if (requestInProgress.current) return;
+      requestInProgress.current = true;
+      console.log("[TRACE] Calling Native.checkAndRequestPermissions...");
       const granted = await Native.checkAndRequestPermissions();
+      console.log("[TRACE] Native.checkAndRequestPermissions returned:", granted);
       if (mounted) {
         if (granted) onGranted();
         else {
@@ -337,12 +347,17 @@ function InitialPermissionsScreen({ T, onGranted }) {
           setChecking(false);
         }
       }
+      requestInProgress.current = false;
     };
     request();
-    return () => { mounted = false; };
+    return () => { 
+      console.log("[TRACE] InitialPermissionsScreen useEffect unmounted");
+      mounted = false; 
+    };
   }, [onGranted]);
 
   const retry = async () => {
+    console.log("[TRACE] Retry button clicked");
     setError("");
     const granted = await Native.checkAndRequestPermissions();
     if (granted) onGranted();
@@ -1470,23 +1485,32 @@ function AyuGuardInner() {
         const setupDone = await Native.getItem("ayuguard_setup_done");
         const tutDone = await Native.getItem("ayuguard_tutorial_done");
         const permsDone = await Native.getItem("ayuguard_perms_done");
+        console.log("[TRACE] AyuGuardInner check items, permsDone:", permsDone, "setupDone:", setupDone, "tutDone:", tutDone);
         if (mounted) {
           if (permsDone !== "1") {
+            console.log("[TRACE] Setting screen to INITIAL_PERMISSIONS");
             setScreen(S.INITIAL_PERMISSIONS);
           } else if (setupDone !== "1") {
+            console.log("[TRACE] Setting screen to SETUP_WIZARD");
             setScreen(S.SETUP_WIZARD);
           } else if (tutDone !== "1") {
+            console.log("[TRACE] Setting screen to TUTORIAL");
             setScreen(S.TUTORIAL);
           } else {
+            console.log("[TRACE] Setting screen to HOME/JOURNEY");
             setScreen(jrn && JSON.parse(jrn).active ? S.JOURNEY_ACTIVE : S.HOME);
           }
         }
       } catch (e) {
+        console.error("[TRACE] AyuGuardInner init error", e);
         if (mounted) setScreen(S.HOME); // fallback
       }
     }
     init();
-    return () => { mounted = false; };
+    return () => { 
+      console.log("[TRACE] AyuGuardInner useEffect unmounted");
+      mounted = false; 
+    };
   }, []);
 
   const completeTutorial = useCallback(async () => {

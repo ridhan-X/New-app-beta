@@ -146,15 +146,19 @@ public class AyuGuardServicePlugin extends Plugin {
 
     @PluginMethod
     public void requestNativePermissions(PluginCall call) {
+        android.util.Log.d("AyuGuard", "[TRACE] requestNativePermissions called on Android plugin");
         if (Build.VERSION.SDK_INT >= 33) {
+            android.util.Log.d("AyuGuard", "[TRACE] Requesting aliases: sms, location, notifications");
             requestPermissionForAliases(new String[]{"sms", "location", "notifications"}, call, "permissionsCallback");
         } else {
+            android.util.Log.d("AyuGuard", "[TRACE] Requesting aliases: sms, location");
             requestPermissionForAliases(new String[]{"sms", "location"}, call, "permissionsCallback");
         }
     }
 
     @com.getcapacitor.annotation.PermissionCallback
     private void permissionsCallback(PluginCall call) {
+        android.util.Log.d("AyuGuard", "[TRACE] permissionsCallback executed");
         JSObject ret = new JSObject();
         boolean smsGranted = getPermissionState("sms") == com.getcapacitor.PermissionState.GRANTED;
         boolean locGranted = getPermissionState("location") == com.getcapacitor.PermissionState.GRANTED;
@@ -162,6 +166,7 @@ public class AyuGuardServicePlugin extends Plugin {
         if (Build.VERSION.SDK_INT >= 33) {
             notifGranted = getPermissionState("notifications") == com.getcapacitor.PermissionState.GRANTED;
         }
+        android.util.Log.d("AyuGuard", "[TRACE] smsGranted=" + smsGranted + " locGranted=" + locGranted + " notifGranted=" + notifGranted);
         ret.put("granted", smsGranted && locGranted && notifGranted);
         call.resolve(ret);
     }
