@@ -974,10 +974,10 @@ function SOSCountdownScreen({ T, countdownSec, onCancel, onAlarm, isTest, sosTyp
   const audioRef = useRef(null);
   useEffect(() => { onAlarmRef.current = onAlarm; }, [onAlarm]);
 
-  // Play alarm sound in last 13 seconds (for journey) or from start (for manual)
+  // Play alarm sound in last 13 seconds for both modes
   useEffect(() => {
     if (!alarmPlayedRef.current && alarmSoundEnabled !== false && timeLeft > 0) {
-      if (sosType === "manual" || (sosType === "journey" && timeLeft <= 13)) {
+      if (timeLeft <= 13) {
         alarmPlayedRef.current = true;
         try {
           const src = "/sos_alarm.mp3";
@@ -988,7 +988,7 @@ function SOSCountdownScreen({ T, countdownSec, onCancel, onAlarm, isTest, sosTyp
         } catch {}
       }
     }
-  }, [timeLeft, alarmSoundEnabled, sosType]);
+  }, [timeLeft, alarmSoundEnabled]);
 
   useEffect(() => {
     locationManager.fetchForSOS().catch(() => {});
