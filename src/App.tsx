@@ -60,9 +60,10 @@ const Native = {
   },
   async openBatterySettings() {
     try {
-      const { NativeSettings, AndroidSettings } = await import("capacitor-native-settings");
+      const { NativeSettings, AndroidSettings, IOSSettings } = await import("capacitor-native-settings");
       await NativeSettings.open({
         optionAndroid: AndroidSettings.BatteryOptimization,
+        optionIOS: IOSSettings.App
       });
     } catch {
       alert("In the Android APK, this opens the System Battery Settings.");
@@ -70,15 +71,43 @@ const Native = {
   },
   async startForegroundService(type, data) {
     try {
-      const { AyuGuardService } = await import("@capacitor/core");
-      if (AyuGuardService) await AyuGuardService.start({ type, ...data });
+      const { registerPlugin } = await import("@capacitor/core");
+      const AyuGuardService = registerPlugin<any>("AyuGuardService");
+      if (AyuGuardService) {
+        const contactsStr = await Native.getItem("ayuguard_contacts");
+        const settingsStr = await Native.getItem("ayuguard_settings");
+        let alarmSoundEnabled = true;
+        try { if (settingsStr) alarmSoundEnabled = JSON.parse(settingsStr).alarmSoundEnabled !== false; } catch {}
+        await AyuGuardService.start({ type, contacts: contactsStr || "[]", alarmSoundEnabled, ...data });
+      }
     } catch {}
   },
   async stopForegroundService() {
     try {
-      const { AyuGuardService } = await import("@capacitor/core");
+      const { registerPlugin } = await import("@capacitor/core");
+      const AyuGuardService = registerPlugin<any>("AyuGuardService");
       if (AyuGuardService) await AyuGuardService.stop();
     } catch {}
+  },
+  async markDispatched() {
+    try {
+      const { registerPlugin } = await import("@capacitor/core");
+      const AyuGuardService = registerPlugin<any>("AyuGuardService");
+      if (AyuGuardService && AyuGuardService.markDispatchedJS) {
+        await AyuGuardService.markDispatchedJS();
+      }
+    } catch {}
+  },
+  async hasDispatchedRecently() {
+    try {
+      const { registerPlugin } = await import("@capacitor/core");
+      const AyuGuardService = registerPlugin<any>("AyuGuardService");
+      if (AyuGuardService && AyuGuardService.hasDispatchedRecentlyJS) {
+        const { value } = await AyuGuardService.hasDispatchedRecentlyJS();
+        return value;
+      }
+    } catch {}
+    return false;
   },
   async getLocation() {
     try {
@@ -96,17 +125,12 @@ const Native = {
   async sendSMS(numbers, message) {
     let success = false;
     try {
-      const p = "@capacitor-community/sms";
-      const { SmsManager } = await import(/* @vite-ignore */ p);
-      
+      const { registerPlugin } = await import("@capacitor/core");
+      const AyuGuardService = registerPlugin<any>("AyuGuardService");
       const uniqueNumbers = [...new Set(numbers.filter(Boolean))];
-      for (const number of uniqueNumbers) {
-        try {
-          await SmsManager.send({ numbers: [number], text: message });
-          success = true; // at least one succeeded
-        } catch {
-          console.warn(`SMS failed for ${number}`);
-        }
+      if (AyuGuardService) {
+        await AyuGuardService.sendSMS({ numbersStr: uniqueNumbers.join(","), message });
+        success = true;
       }
       return success;
     } catch {
@@ -136,11 +160,10 @@ const Native = {
       if (l.display === "prompt") await LocalNotifications.requestPermissions();
     } catch {}
     try {
-      const p = "@capacitor-community/sms";
-      const { SmsManager } = await import(/* @vite-ignore */ p);
-      if (SmsManager.checkPermissions) {
-        const s = await SmsManager.checkPermissions();
-        if (s.sms === "prompt") await SmsManager.requestPermissions();
+      const { registerPlugin } = await import("@capacitor/core");
+      const AyuGuardService = registerPlugin("AyuGuardService") as any;
+      if (AyuGuardService && AyuGuardService.requestNativePermissions) {
+        await AyuGuardService.requestNativePermissions();
       }
     } catch {}
   },
@@ -184,6 +207,7 @@ const Ic = {
   location: (c,s=18) => <svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke={c} strokeWidth="1.8" strokeLinecap="round"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z"/><circle cx="12" cy="9" r="2.5"/></svg>,
   offline: (c,s=18) => <svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke={c} strokeWidth="1.8" strokeLinecap="round"><line x1="1" y1="1" x2="23" y2="23"/><path d="M16.72 11.06A10.94 10.94 0 0 1 19 12.55M5 12.55a10.94 10.94 0 0 1 5.17-2.39M10.71 5.05A16 16 0 0 1 22.56 9M1.42 9a15.91 15.91 0 0 1 4.7-2.88M8.53 16.11a6 6 0 0 1 6.95 0M12 20h.01"/></svg>,
   journey: (c,s=20) => <svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke={c} strokeWidth="1.8" strokeLinecap="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>,
+  map: (c,s=24) => <svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke={c} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2 1 6"></polygon><line x1="8" y1="2" x2="8" y2="18"></line><line x1="16" y1="6" x2="16" y2="22"></line></svg>,
   contacts: (c,s=20) => <svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke={c} strokeWidth="1.8" strokeLinecap="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg>,
   settings: (c,s=20) => <svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke={c} strokeWidth="1.8" strokeLinecap="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>,
   info: (c,s=20) => <svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke={c} strokeWidth="1.8" strokeLinecap="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>,
@@ -311,6 +335,14 @@ function SetupWizardScreen({ T, onComplete }) {
     nextStep();
   };
 
+  const handleAppInfo = async () => {
+    await Native.openAppSettings();
+  };
+
+  const handleBattery = async () => {
+    await Native.openBatterySettings();
+  };
+
   return (
     <div style={{ minHeight: "100dvh", display: "flex", flexDirection: "column", background: T.bg, padding: "40px 24px" }}>
       <div style={{ flex: 1, display: "flex", flexDirection: "column", justifyContent: "center" }}>
@@ -372,7 +404,7 @@ function SetupWizardScreen({ T, onComplete }) {
               </div>
             </div>
             <div style={{ display: "flex", gap: 12 }}>
-              <button className="btn-ghost" style={{ flex: 1 }} onClick={async () => { await Native.openAppSettings(); }}>Open App Info</button>
+              <button className="btn-ghost" style={{ flex: 1 }} onClick={handleAppInfo}>Open App Info</button>
               <button className="btn-primary" style={{ flex: 1 }} onClick={nextStep}>Done</button>
             </div>
           </div>
@@ -392,7 +424,7 @@ function SetupWizardScreen({ T, onComplete }) {
               </div>
             </div>
             <div style={{ display: "flex", gap: 12 }}>
-              <button className="btn-ghost" style={{ flex: 1 }} onClick={async () => { await Native.openBatterySettings(); }}>Open Settings</button>
+              <button className="btn-ghost" style={{ flex: 1 }} onClick={handleBattery}>Open Settings</button>
               <button className="btn-primary" style={{ flex: 1 }} onClick={nextStep}>Done</button>
             </div>
           </div>
@@ -1471,6 +1503,15 @@ export default function AyuGuard() {
   }, [sosState.type, emergencySettings]);
 
   const dispatchEmergency = useCallback(async () => {
+    // Stop native timer immediately to prevent duplicate
+    await Native.stopForegroundService();
+
+    if (await Native.hasDispatchedRecently()) {
+      return; // Already dispatched by native service
+    }
+
+    await Native.markDispatched();
+
     const loc = await locationManager.fetchForSOS();
     const mapLink = loc ? `https://maps.google.com/?q=${loc.lat},${loc.lng}` : null;
     const battery = await Native.getBattery();
@@ -1596,12 +1637,12 @@ export default function AyuGuard() {
   const isFullScreen = [S.SOS_COUNTDOWN, S.SOS_ALARM, S.TEST_COUNTDOWN, S.TEST_ALARM].includes(screen);
   const isTutorial = screen === S.TUTORIAL || screen === S.SETUP_WIZARD;
 
-  if (screen === null) return <div style={{ background: T.bg, minHeight: "100dvh" }} />;
-
   const completeSetup = useCallback(async () => {
     await Native.setItem("ayuguard_setup_done", "1");
     setScreen(S.TUTORIAL);
   }, []);
+
+  if (screen === null) return <div style={{ background: T.bg, minHeight: "100dvh" }} />;
 
   return (
     <ThemeCtx.Provider value={T}>
@@ -1636,7 +1677,8 @@ export default function AyuGuard() {
               const jData = { ...j, active: true, timeLeft: j.durationSec, endTime: Date.now() + j.durationSec * 1000 };
               setJourney(jData);
               locationManager.startJourneyTracking();
-              Native.startForegroundService("journey", { endTime: jData.endTime });
+              const sosSec = emergencySettings.journeyTimerSec || 120;
+              Native.startForegroundService("journey", { endTime: jData.endTime + sosSec * 1000 });
               navigate(S.JOURNEY_ACTIVE);
             }} />
           )}

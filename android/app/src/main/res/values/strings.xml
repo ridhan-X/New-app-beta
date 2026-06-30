@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">AyuGuard</string>
+    <string name="title_activity_main">AyuGuard</string>
+    <string name="package_name">com.ayuguard.app</string>
+    <string name="custom_url_scheme">com.ayuguard.app</string>
+</resources>
