@@ -1,0 +1,6 @@
+{
+  "name": "AyuGuard",
+  "description": "A fast, lightweight, and offline-first personal safety shield.",
+  "requestFramePermissions": ["geolocation"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
